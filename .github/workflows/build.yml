@@ -150,3 +150,15 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
+      # One release per Skiko version: the revisions before this one go, with their tags.
+      - name: Remove this Skiko's earlier revisions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$GITHUB_REF_NAME"
+          gh release list -R "$GITHUB_REPOSITORY" --limit 1000 --json tagName -q '.[].tagName' | while read -r tag; do
+            if [ "${tag%-*}" = "${current%-*}" ] && [ "${tag##*-}" -lt "${current##*-}" ] 2>/dev/null; then
+              echo "Removing $tag"
+              gh release delete "$tag" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            fi
+          done
