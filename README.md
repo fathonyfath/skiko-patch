@@ -15,7 +15,8 @@
 
 CI builds, for every push, Skiko's JVM runtime for macOS, Windows and Linux on arm64 and x64, and its wasm runtime,
 each as Skiko's own CI does (Linux in Skiko's Docker image, wasm with the Emscripten it names). For a tag,
-`v<skiko version>-<revision>`, it releases them as Skiko publishes them, with their SHA-256 sums:
+`v<skiko version>-<revision>`, it releases them as Skiko publishes them, with their SHA-256 sums, and removes that
+Skiko's earlier revisions, so each Skiko version has one release:
 
 - `skiko-awt-runtime-<os>-<arch>-<version>.jar`: the native library and its `.sha256`, which Skiko names its
   unpacked copy after, so it never mixes with the stock one.
