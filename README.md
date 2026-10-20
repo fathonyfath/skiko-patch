@@ -36,8 +36,9 @@ the patches.
 ## Skiko versions
 
 Each Skiko version has a branch, `skiko-<version>`, with the submodule at Skiko's tag for it, and its releases are
-tagged on that branch. `./new-version.sh <version>` makes the branch from `main` and checks that the patches apply;
-push it, then tag `v<version>-1`. When a patch no longer applies, fix it by hand on the branch,
+tagged on that branch; there is no other. `./new-version.sh <version>` makes the branch from the one checked out (the
+newest Skiko's) and checks that the patches apply; push it, then tag `v<version>-1`. A change to the build or the
+patches is made on every branch it applies to. When a patch no longer applies, fix it by hand on the branch,
 `git -C skiko diff > patches/<name>.patch`, and put its description back on top.
 
 ## License
