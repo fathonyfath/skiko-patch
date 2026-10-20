@@ -96,8 +96,8 @@ jobs:
           name: linux-${{ matrix.arch }}
           path: skiko/skiko/build/libs/skiko-*-linux-${{ matrix.arch }}.jar
 
-  # With the Emscripten Skiko builds with (EMSDK_VER in skiko/skiko/docker/linux-emscripten-amd64), installed as
-  # Skiko's image does, on the runner: the image has a Python too old for today's emsdk.
+  # With the Emscripten Skiko builds with (EMSDK_VER in its image's Dockerfile), installed as that image does, on the
+  # runner: the image has a Python too old for today's emsdk.
   wasm:
     name: Wasm
     runs-on: ubuntu-24.04
@@ -112,9 +112,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Install Emscripten
         run: |
-          git clone --depth 1 --branch 4.0.7 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
-          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.7
-          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.7
+          version=$(sed -n 's/^ENV EMSDK_VER=//p' skiko/skiko/docker/linux-emscripten-amd64/Dockerfile)
+          git clone --depth 1 --branch "$version" https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$version"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$version"
           echo "$RUNNER_TEMP/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
       - name: Apply the patches
         run: ./apply-patches.sh

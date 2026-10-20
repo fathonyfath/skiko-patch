@@ -33,11 +33,12 @@ The jar is in `skiko/skiko/build/libs/`. A Mac needs the Xcode command line tool
 and LLVM (`clang-cl`); Linux, the packages in `skiko/skiko/docker/linux-compat`. `git -C skiko checkout -- .` undoes
 the patches.
 
-## Moving to a new Skiko
+## Skiko versions
 
-Check out the new tag in `skiko/`, write its version in `skiko-version`, run `./apply-patches.sh` and fix any patch
-that no longer applies (fix it by hand, `git -C skiko diff > patches/<name>.patch`, and put its description back on
-top), then tag a release.
+Each Skiko version has a branch, `skiko-<version>`, with the submodule at Skiko's tag for it, and its releases are
+tagged on that branch. `./new-version.sh <version>` makes the branch from `main` and checks that the patches apply;
+push it, then tag `v<version>-1`. When a patch no longer applies, fix it by hand on the branch,
+`git -C skiko diff > patches/<name>.patch`, and put its description back on top.
 
 ## License
 
