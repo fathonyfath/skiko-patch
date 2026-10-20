@@ -13,6 +13,11 @@ on:
 permissions:
   contents: write
 
+# A new push to a branch or pull request cancels the run still going for the one before it; each tag runs to the end.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   macos:
     name: macOS ${{ matrix.arch }}
