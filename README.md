@@ -7,6 +7,9 @@
 - `0001-registered-fonts-first`: fall back to the fonts an app registers before the system's, in the face nearest
   the text's weight. Without it, text in a font of the app's own draws its emoji and CJK from the machine's fonts
   (Apple Color Emoji and Hiragino on a Mac) instead of the fallbacks the app carries.
+- `0002-registered-emoji-first`: the same for emoji on macOS and iOS, where Skia asks for Apple Color Emoji by name
+  before it falls back by character: that name is answered with the registered font that draws emoji, when there is
+  one.
 
 ## What it builds
 
