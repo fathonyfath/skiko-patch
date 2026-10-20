@@ -1,0 +1,33 @@
+Fall back for emoji to the registered fonts first on Apple platforms too
+
+On macOS and iOS, Skia's paragraph falls back for an emoji by asking the default font manager for "Apple Color
+Emoji" by name (FontCollection::defaultEmojiFallback), before it asks any font manager for the character, so
+0001's order never reaches emoji there: they draw in the system's Apple Color Emoji whatever an app registers.
+This answers that name with the registered font that draws emoji (the first that has U+1F600, in the face
+nearest the style), when there is one; with none registered, the system's as before.
+
+diff --git a/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc b/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc
+index 993d1d7e2..458b02c48 100644
+--- a/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc
++++ b/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc
+@@ -1,4 +1,5 @@
+ #include <cstdlib>
++#include <cstring>
+ #include "FontMgrWithFallbackWrapper.hh"
+ #include "FontMgrDefaultFactory.hh"
+ 
+@@ -24,6 +25,14 @@ sk_sp<SkFontStyleSet> FontMgrWithFallbackWrapper::onCreateStyleSet(int ix) const
+ }
+ 
+ sk_sp<SkTypeface> FontMgrWithFallbackWrapper::onMatchFamilyStyle(const char familyName[], const SkFontStyle& style) const {
++    // On Apple platforms Skia's paragraph falls back for emoji by asking for this family by name, before it asks any
++    // font manager for the character: answer with the registered font that draws emoji, when there is one, so emoji
++    // fall back to the registered fonts first too.
++    if (familyName != nullptr && strcmp(familyName, "Apple Color Emoji") == 0) {
++        if (auto emoji = fallbackFontProvider->fallbackForChar(0x1F600, style)) {
++            return emoji;
++        }
++    }
+     return wrappedFntMgr->matchFamilyStyle(familyName, style);
+ }
+ 
