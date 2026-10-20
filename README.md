@@ -26,7 +26,7 @@ Kotlin libraries.
 ```
 git submodule update --init
 ./apply-patches.sh
-cd skiko && ./gradlew -Pdeploy.version=$(cat ../skiko-version) :skiko:skikoJvmRuntimeJarMacosArm64
+cd skiko && ./gradlew -Pdeploy.version=$(cat ../skiko-version) -Pdeploy.release=true :skiko:skikoJvmRuntimeJarMacosArm64
 ```
 
 The jar is in `skiko/skiko/build/libs/`. A Mac needs the Xcode command line tools; Windows, Visual Studio Build Tools
