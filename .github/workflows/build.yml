@@ -1,0 +1,143 @@
+# Builds Skiko's native runtimes with the patches applied, on every push and pull request, and releases them for a
+# tag (v<skiko version>-<revision>, such as v0.150.1-1): each desktop runtime jar and the wasm runtime jar, laid out
+# as Skiko publishes them, and their SHA-256 sums.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: macos-15
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: corretto
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Apply the patches
+        run: ./apply-patches.sh
+      - name: Build
+        working-directory: skiko
+        run: ./gradlew --no-daemon -Pdeploy.version=$(cat ../skiko-version) -Pskiko.arch=${{ matrix.arch }} :skiko:skikoJvmRuntimeJarMacos${{ matrix.arch == 'arm64' && 'Arm64' || 'X64' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: skiko/skiko/build/libs/skiko-*-macos-${{ matrix.arch }}.jar
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: corretto
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Apply the patches
+        shell: bash
+        run: ./apply-patches.sh
+      - name: Build
+        shell: bash
+        working-directory: skiko
+        run: ./gradlew --no-daemon -Pdeploy.version=$(cat ../skiko-version) -Pskiko.arch=${{ matrix.arch }} :skiko:skikoJvmRuntimeJarWindows${{ matrix.arch == 'arm64' && 'Arm64' || 'X64' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: skiko/skiko/build/libs/skiko-*-windows-${{ matrix.arch }}.jar
+
+  # In Skiko's own image, whose glibc (2.26) is old enough for the libraries to load on any current Linux.
+  linux:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Apply the patches
+        run: ./apply-patches.sh
+      - name: Build the image
+        run: docker build -t skiko-linux skiko/skiko/docker/linux-compat
+      - name: Build
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace/skiko skiko-linux \
+            ./gradlew --no-daemon -Pdeploy.version=$(cat skiko-version) -Pskiko.arch=${{ matrix.arch }} :skiko:skikoJvmRuntimeJarLinux${{ matrix.arch == 'arm64' && 'Arm64' || 'X64' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: skiko/skiko/build/libs/skiko-*-linux-${{ matrix.arch }}.jar
+
+  # With the Emscripten Skiko builds with (EMSDK_VER in skiko/skiko/docker/linux-emscripten-amd64), on the runner:
+  # Skiko's image has a Python too old for today's emsdk.
+  wasm:
+    name: Wasm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: corretto
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.7
+      - name: Apply the patches
+        run: ./apply-patches.sh
+      - name: Build
+        working-directory: skiko
+        run: ./gradlew --no-daemon -Pdeploy.version=$(cat ../skiko-version) -Pskiko.wasm.enabled=true -Pskiko.awt.enabled=false :skiko:skikoWasmJar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: skiko/skiko/build/libs/skiko-wasm-*.jar
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows, linux, wasm]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Name the runtimes as Skiko publishes them
+        working-directory: artifacts
+        run: |
+          version=$(ls skiko-wasm-*.jar | sed -E 's/^skiko-wasm-(.*)\.jar$/\1/')
+          for os_arch in macos-arm64 macos-x64 windows-x64 windows-arm64 linux-x64 linux-arm64; do
+            mv "skiko-$version-$os_arch.jar" "skiko-awt-runtime-$os_arch-$version.jar"
+          done
+          mv "skiko-wasm-$version.jar" "skiko-js-wasm-runtime-$version.jar"
+          sha256sum *.jar > SHA256SUMS
+          cat SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

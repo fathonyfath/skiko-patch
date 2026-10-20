@@ -1,0 +1,79 @@
+Fall back to the registered fonts before the system's, in the nearest weight
+
+Compose registers the fonts an app loads (and any fallbacks it adds) with a TypefaceFontProviderWithFallback,
+which FontMgrWithFallback asks only once the system's font manager has no font for a character. On a Mac,
+CoreText always has one (Apple Color Emoji, PingFang, Hiragino), so text in an app's own font draws its emoji
+and CJK from the machine, never from the fonts the app carries. This asks the registered fonts first, and the
+system only for what none of them has.
+
+Among the registered fonts that have the character, it takes the first one's family in the face nearest the
+run's style, so a bold run falls back to a bold face rather than to whichever weight was registered first.
+
+diff --git a/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc b/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc
+index e2ba237..993d1d7 100644
+--- a/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc
++++ b/skiko/src/commonMain/cpp/common/FontMgrWithFallbackWrapper.cc
+@@ -1,3 +1,4 @@
++#include <cstdlib>
+ #include "FontMgrWithFallbackWrapper.hh"
+ #include "FontMgrDefaultFactory.hh"
+ 
+@@ -31,9 +32,11 @@ sk_sp<SkTypeface> FontMgrWithFallbackWrapper::onMatchFamilyStyleCharacter(
+     const char* bcp47[], int bcp47Count,
+     SkUnichar character
+ ) const {
+-    auto typeface = wrappedFntMgr->matchFamilyStyleCharacter(fontFamily, style, bcp47, bcp47Count, character);
++    // The registered fonts first, then the system's: an app that registers fallback fonts draws with them on every
++    // machine, rather than with whichever font the system has for the character.
++    auto typeface = fallbackFontProvider->fallbackForChar(character, style);
+     if (!typeface) {
+-        typeface = fallbackFontProvider->fallbackForChar(character);
++        typeface = wrappedFntMgr->matchFamilyStyleCharacter(fontFamily, style, bcp47, bcp47Count, character);
+     }
+     return typeface;
+ }
+@@ -85,6 +88,32 @@ sk_sp<SkTypeface> TypefaceFontProviderWithFallback::fallbackForChar(SkUnichar ch
+     return nullptr;
+ }
+ 
++// The first registered font that has the character, in the face of its family nearest [style]: a bold run falls back
++// to the bold face of a fallback registered in several weights, not to whichever weight was registered first.
++sk_sp<SkTypeface> TypefaceFontProviderWithFallback::fallbackForChar(SkUnichar character, const SkFontStyle& style) const {
++    auto first = fallbackForChar(character);
++    if (!first) return nullptr;
++    SkString family;
++    first->getFamilyName(&family);
++    auto distance = [&style](const SkFontStyle& other) {
++        return std::abs(other.weight() - style.weight()) + (other.slant() == style.slant() ? 0 : 1000);
++    };
++    auto best = first;
++    auto bestDistance = distance(first->fontStyle());
++    for (const auto& typeface : registeredTypefaces) {
++        if (!typeface || typeface->unicharToGlyph(character) == 0) continue;
++        SkString name;
++        typeface->getFamilyName(&name);
++        if (name != family) continue;
++        auto d = distance(typeface->fontStyle());
++        if (d < bestDistance) {
++            best = typeface;
++            bestDistance = d;
++        }
++    }
++    return best;
++}
++
+ sk_sp<SkFontStyleSet> TypefaceFontProviderWithFallback::onCreateStyleSet(int) const {
+     // override to revert this change made in the parent class: https://skia-review.googlesource.com/c/skia/+/834816
+     // This revert is only for our subtype, for Compose purposes:
+diff --git a/skiko/src/commonMain/cpp/common/include/FontMgrWithFallbackWrapper.hh b/skiko/src/commonMain/cpp/common/include/FontMgrWithFallbackWrapper.hh
+index 5ac151a..c4161bb 100644
+--- a/skiko/src/commonMain/cpp/common/include/FontMgrWithFallbackWrapper.hh
++++ b/skiko/src/commonMain/cpp/common/include/FontMgrWithFallbackWrapper.hh
+@@ -18,6 +18,7 @@ public:
+     size_t registerTypeface(sk_sp<SkTypeface> typeface, const SkString& alias);
+ 
+     sk_sp<SkTypeface> fallbackForChar(SkUnichar character) const;
++    sk_sp<SkTypeface> fallbackForChar(SkUnichar character, const SkFontStyle& style) const;
+     sk_sp<SkFontStyleSet> onCreateStyleSet(int) const override;
+ 
+ private:
