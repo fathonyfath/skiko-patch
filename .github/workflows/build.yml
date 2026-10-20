@@ -1,11 +1,11 @@
-# Builds Skiko's native runtimes with the patches applied, on every push and pull request, and releases them for a
-# tag (v<skiko version>-<revision>, such as v0.150.1-1): each desktop runtime jar and the wasm runtime jar, laid out
-# as Skiko publishes them, and their SHA-256 sums.
+# Builds Skiko's native runtimes with the patches applied, on every push to a Skiko version's branch (skiko-<version>)
+# and every pull request, and releases them for a tag (v<skiko version>-<revision>, such as v0.150.1-1): each desktop
+# runtime jar and the wasm runtime jar, laid out as Skiko publishes them, and their SHA-256 sums.
 name: Build
 
 on:
   push:
-    branches: [main]
+    branches: ['skiko-*']
     tags: ['v*']
   pull_request:
   workflow_dispatch:
