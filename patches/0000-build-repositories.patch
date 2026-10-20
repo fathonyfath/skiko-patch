@@ -1,0 +1,26 @@
+Fetch the build's helpers from JetBrains' package host as it is now
+
+This Skiko fetches its build helpers (org.jetbrains.compose.internal) from maven.pkg.jetbrains.space, which no
+longer serves them. Later Skikos fetch the same helpers from packages.jetbrains.team, which still has these
+versions. The build alone changes; the runtimes do not.
+
+diff --git a/skiko/buildSrc/settings.gradle.kts b/skiko/buildSrc/settings.gradle.kts
+index 0f44b5f87..067217795 100644
+--- a/skiko/buildSrc/settings.gradle.kts
++++ b/skiko/buildSrc/settings.gradle.kts
+@@ -7,14 +7,9 @@ pluginManagement {
+ 
+ dependencyResolutionManagement {
+     repositories {
+-        maven("https://maven.pkg.jetbrains.space/public/p/compose/internal") {
++        maven("https://packages.jetbrains.team/maven/p/cmp/dev") {
+             content {
+                 includeGroupByRegex("org.jetbrains.compose.internal.*")
+-            }
+-        }
+-
+-        maven("https://maven.pkg.jetbrains.space/public/p/space/maven") {
+-            content {
+                 includeModuleByRegex("org.jetbrains", ".*space.*")
+             }
+         }
